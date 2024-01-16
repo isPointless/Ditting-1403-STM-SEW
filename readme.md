@@ -1,12 +1,15 @@
-# SEW Movidrive B MC07B inverter control using STM32F411CE Blackpill over RS485 / MAX485
+# Ditting 1403 with Variable RPM and autopurge
 
-Hey! I made a sketch to control a 3 phase Coffee grinder with an SEW Movidrive B MC07B over RS485 using the Movilink protocol.
+Hey! I made a sketch to control a 3 phase Coffee grinder (Ditting 1403) with an SEW Movidrive B MC07B over RS485 using the Movilink protocol.
 This makes use of the FSC11b (or another) comms module, he MC07B base unit does NOT have RS485 capability. However these comm modules are very common.
 
 The concept is simple, have a little screen set/realtime showing RPM, a rotary encoder to change it, a button to start it all up, and a menu to control some modes.
 The purpose of this is to have a readout of the current going to the motor in Sensorless Vector Control (SVC), so we can sense when the motor is working thus actually grinding.
 
 It can then, when grinding is finished, ramp up the RPM to the max setting to blow out any residual coffee grounds. Like the auto purge function found on the P100 from Option O.
+
+FYI I'm using a 230V 1 phase VFD, and a three phase 380V motor wired in DELTA, essentially making it 230V 3˜.
+This, as far as i know, does NOT work on a single phase motor. Atleast not out of the box. I do wanna see you try tho!
 
 ### BOM
 
