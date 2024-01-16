@@ -3,10 +3,10 @@
 Hey! I made a sketch to control a 3 phase Coffee grinder with an SEW Movidrive B MC07B over RS485 using the Movilink protocol.
 This makes use of the FSC11b (or another) comms module, he MC07B base unit does NOT have RS485 capability. However these comm modules are very common.
 
-This is not a final implementation, but mainly to help you get over the first annoying bit of setting up the communication
+The concept is simple, have a little screen set/realtime showing RPM, a rotary encoder to change it, a button to start it all up, and a menu to control some modes.
+The purpose of this is to have a readout of the current going to the motor in Sensorless Vector Control (SVC), so we can sense when the motor is working thus actually grinding.
 
-I spend literally two of my free days debugging this on an Arduino nano (most random issues of variables changing out of nowhere, not receiving properly etc)
-So that's why it's on an overkill STM32F411CE BlackPill (WeAct studio) - but it works.
+It can then, when grinding is finished, ramp up the RPM to the max setting to blow out any residual coffee grounds. Like the auto purge function found on the P100 from Option O.
 
 ### BOM
 
@@ -62,21 +62,21 @@ I've only implemented the cyclical Process Word communication, not yet the cycli
 
 A standard cyclical message:
 __ start pause __ (3.5ms min)
-Byte1: Start delimiter (Request = 0x02, response = 0x1D)
-Byte2: Slave ADDR (0-99 for single addressing, 254 for universal point to point, see PDF for more)
-Byte3: TYPE / PDU type (0x05 for 3 Process words, 0x06 for 8 byte parameter channel, x04 for 3 PWs + 8byte param channel) all in CYCLIC MODE
-Byte4+5: PD1 (assume TYPE 0x05) so either a PO or PI (set value in page 330 SEW MC07b manual --> Parameter 870-876, i use DEFAULT settings)
-Byte6+7: PD2 
-Byte8+9: PD3
-Byte10: BCC (Block Check Character, makes all bits in the same position of the bytes combined an EVEN number) 
+- Byte1: Start delimiter (Request = 0x02, response = 0x1D)
+- Byte2: Slave ADDR (0-99 for single addressing, 254 for universal point to point, see PDF for more)
+- Byte3: TYPE / PDU type (0x05 for 3 Process words, 0x06 for 8 byte parameter channel, x04 for 3 PWs + 8byte param channel) all in CYCLIC MODE
+- Byte4+5: PD1 (assume TYPE 0x05) so either a PO or PI (set value in page 330 SEW MC07b manual --> Parameter 870-876, i use DEFAULT settings)
+- Byte6+7: PD2 
+- Byte8+9: PD3
+- Byte10: BCC (Block Check Character, makes all bits in the same position of the bytes combined an EVEN number) 
 
 Example data for BCC:
-1 0 0 1 0 1 
-1 1 0 0 1 1
-1 0 0 1 0 0
-Then the BCC is: making every column of bits even:
-1 1 0 0 1 0
-This is achieved by the XOR bitwise operator (^).
+- 1 0 0 1 0 1 
+- 1 1 0 0 1 1
+- 1 0 0 1 0 0
+- Then the BCC is: making every column of bits even:
+- 1 1 0 0 1 0
+- This is achieved by the XOR bitwise operator (^).
 Note that the PDs are words, and for the BCC split up into two bytes. 
 
 Practical parameters to check on the device to see if its working:
