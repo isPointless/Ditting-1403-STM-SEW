@@ -81,7 +81,7 @@ bool SEW::sendSEW(uint8_t SA, int16_t Speed, int16_t PO3, u_int8_t interval) // 
 
     Serial2.flush(); //wait for stuff to flush the serial before changing to RX mode
     setRXmode();
-    state = 0;      //Improves stability, this is the receive state
+    state = 0;      //this is the receive state
     dataDiff++;     //for debugging, see difference between send & received msg'es (should be 0)
     lastSend = millis();
     return true;

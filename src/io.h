@@ -7,6 +7,7 @@ class IO {
     u_int32_t v;
     u_int32_t lastv;
     u_int16_t storedRPM = 0;
+    
 
     public:
     u_int16_t RPM_SET = 0;
@@ -18,6 +19,9 @@ class IO {
     void writeToEEPROM(uint8_t what);
     void readEEPROM();
     void encoderInit();
+
+    void ledAction(uint8_t type); //Type: 0 = off, 1 = on, 2 = flashing, 3 = fading, 4 = fast flash
+
 
     uint16_t maxRPM = maxRPM_DEFAULT;
     uint16_t minRPM = minRPM_DEFAULT;

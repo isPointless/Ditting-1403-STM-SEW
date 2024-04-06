@@ -4,6 +4,7 @@
 #include <Arduino.h>
 #include "FlashStorage_STM32.hpp"
 #include <JC_Button.h>
+#include <math.h>
 
 Button enc_button(enc_button_pin);
 Button start_button(start_button_pin);
@@ -50,6 +51,12 @@ void IO::readEEPROM() {
   EEPROM.get(eeAddress + 3* sizeof(u_int16_t) + 2*sizeof(bool), sleep_time_min);
   EEPROM.get(eeAddress + 3* sizeof(u_int16_t) + 2*sizeof(bool) + sizeof(uint8_t), buttonPurgeMode);
 
+  #ifdef DEBUG_IO
+  SerialUSB.print("Min RPM: "), SerialUSB.println(minRPM);
+  SerialUSB.print("RPM_SET: "), SerialUSB.println(RPM_SET);
+  SerialUSB.print("max RPM: "), SerialUSB.println(maxRPM);
+  #endif
+
   for(u_int16_t i = 0; i<(sizeof(currentArray))/sizeof(uint16_t); i++) { 
   EEPROM.get(highAddress + 2*i, currentArray[i]);
   #ifdef DEBUG_CALIBRATE
@@ -59,16 +66,25 @@ void IO::readEEPROM() {
 
   if(maxRPM > absolute_max_rpm || maxRPM < absolute_min_rpm || minRPM > absolute_max_rpm || minRPM < absolute_min_rpm || RPM_SET < minRPM || RPM_SET > maxRPM) {
     maxRPM = maxRPM_DEFAULT;
+    writeToEEPROM(4);
     minRPM = minRPM_DEFAULT;
+    writeToEEPROM(5);
     RPM_SET = RPM_DEFAULT;
+    writeToEEPROM(0);
     viewmode = default_viewmode;
+    writeToEEPROM(1);
     purgeMode = default_purgemode;
+    writeToEEPROM(2);
     buttonPurgeMode = default_buttonpurgemode;
+    writeToEEPROM(7);
     sleep_time_min = default_sleep_time_min;
+    writeToEEPROM(6);
   }
+
   #ifdef DEBUG_IO
   SerialUSB.println("eeprom read");
   #endif
+
   encoderInit();  //eeprom reading breaks the encoder.. put too??
 }
 
@@ -161,4 +177,60 @@ bool IO::START_BUTTON() {
         return true;
     }
     return false;
+}
+
+void IO::ledAction(uint8_t type) {  //Type: 0 = off, 1 = on, 2 = flashing, 3 = fading, 4 flashing fast, 5 = flashing fastest
+static uint8_t lastType = 0;
+static unsigned long lastFlash = millis();
+
+  if (type == 0) { 
+    analogWrite(start_button_led, 0);
+  }
+
+  if (type == 1) {
+    analogWrite(start_button_led, 255);
+  }
+
+  //flashing
+  if (type == 2 || type == 4 || type == 5) { 
+    static bool ledOn = true;
+
+    if(lastType != type) 
+    { 
+      ledOn = true;
+      analogWrite(start_button_led, 255);
+      lastFlash = millis();
+    }
+
+
+      if(lastFlash + (type == 2? flashTime : type == 4? fastFlashTime : fastestFlashTime) < millis()) { 
+        ledOn = !ledOn;
+        analogWrite(start_button_led, ledOn == true? 255 : 0);
+        lastFlash = millis();
+      }
+  }
+
+  if (type == 3) { //fading
+    static double cosValue = 0;
+    static uint8_t ledValue = 0;
+    static uint8_t lastLedValue = 0;
+
+    if (lastType != type) { 
+      lastType == 1? cosValue = 2*PI : cosValue = PI;
+      lastFlash = millis();
+    }
+
+    cosValue > 3*PI? cosValue = PI : 0;
+    cosValue += ((millis() - lastFlash)/(float)fadeTime) * PI;
+    ledValue = ((cos(cosValue) + 1) * 255) / 2;
+
+    lastFlash = millis();
+
+    if(lastLedValue != ledValue) { 
+      analogWrite(start_button_led, ledValue);
+      lastLedValue = ledValue;
+    }
+  }
+
+  lastType = type;
 }

@@ -16,7 +16,6 @@ SEW *sew;
 Display *display;
 IO *io;
 
-
 // // EEPROM
 // int16_t currentArray[((absolute_max_rpm-absolute_min_rpm)/rpmScalar)];
 // int eeAddress = 0;
@@ -58,10 +57,10 @@ bool newMsg = 0;
 
 
 //DEBUG 
-#define DEBUG
-//#define DEBUG_RS485
-#define DEBUG_IO
-#define DEBUG_CALIBRATE
+// #define DEBUG
+// #define DEBUG_RS485
+// #define DEBUG_IO
+// #define DEBUG_CALIBRATE
 
 // *** SETUP *** //
 // ************* //
@@ -86,6 +85,8 @@ void setup() {
   sew->set_param = false;
   sew->controller_reset = false;
   sew->direction = false;
+
+  io->ledAction(1);
 }
 
 // *** Loop ***  //
@@ -130,6 +131,7 @@ void loop()
     sew->controller_stop = false;
     while(!sew->sendSEW(1, 0, 0, minMsgInterval));
     digitalWrite(power_relay_pin, LOW); //turn off power to inverter
+    io->ledAction(0);
   }
 
   // *** IDLE ***  //
@@ -138,6 +140,8 @@ void loop()
       sew->controller_rapidStop = false;
       sew->controller_stop = false;
       digitalWrite(relay_pin, LOW);
+      io->ledAction(3);
+
       if(io->setRPM() != last_setRPM) 
       {
         RPMprct= io->setRPM()/float(io->maxRPM)*(0x4000);
@@ -184,6 +188,13 @@ void loop()
     // *** RUNNING ***  //
   else if (state == RUNNING) {
 
+    //Flash responsively based on auto purge.
+    if (ready_purge == false) { 
+      frameCounter > 1? io->ledAction(4) : io->ledAction(2);
+    } else {
+      io->ledAction(5);
+    }
+
     if(io->setRPM() != last_setRPM) 
       {
         RPMprct= io->setRPM()/float(io->maxRPM)*(0x4000);
@@ -200,26 +211,41 @@ void loop()
         dataAvailable = false;
       }
     
-    
-    if (io->ENC_BUTTON() == true || (io->START_BUTTON() == true && io->buttonPurgeMode == false)) 
-    { 
-      sew->controller_inhibit = false; //disable controller 
-      sew->controller_rapidStop = false;
-      sew->controller_stop = false;
-      digitalWrite(relay_pin, LOW);
-      while(!sew->sendSEW(1, 0, 0, minMsgInterval)); 
-      state = IDLE;
-      dataAvailable = true;
-      lastActivity = millis();
-    }
+    if(io->buttonPurgeMode == false) {
+      if (io->ENC_BUTTON() == true || (io->START_BUTTON() == true)) 
+      { 
+        sew->controller_inhibit = false; //disable controller 
+        sew->controller_rapidStop = false;
+        sew->controller_stop = false;
+        digitalWrite(relay_pin, LOW);
+        while(!sew->sendSEW(1, 0, 0, minMsgInterval)); 
+        state = IDLE;
+        dataAvailable = true;
+        lastActivity = millis();
+      }
+    } 
+    if(io->buttonPurgeMode == true) 
+    {
+      if (io->START_BUTTON() == true) 
+      { 
+        RPMprct=(0x4000);  //setmax RPM
+        startTime = millis();
+        dataAvailable = true;
+        frameCounter = 0; //should already be 0 but ok.
+        state = PURGING;
+      }
 
-    if (io->START_BUTTON() == true && io->buttonPurgeMode == true) 
-    { 
-      RPMprct= (0x4000);  //setmax RPM
-      startTime = millis();
-      dataAvailable = true;
-      frameCounter = 0; //should already be 0 but ok.
-      state = PURGING;
+      if (io->ENC_BUTTON() == true)   //stop the show
+      { 
+        sew->controller_inhibit = false; //disable controller 
+        sew->controller_rapidStop = false;
+        sew->controller_stop = false;
+        digitalWrite(relay_pin, LOW);
+        while(!sew->sendSEW(1, 0, 0, minMsgInterval)); 
+        state = IDLE;
+        dataAvailable = true;
+        lastActivity = millis();
+      }
     }
 
     if(io->purgeMode == true && newMsg == true && startTime + 4000 < millis() && lastActivity + 1000 < millis()) 
@@ -285,10 +311,11 @@ void loop()
       io->viewmode? display->printRPM(motorRPM, 6) : display->printData(io->setRPM(), motorRPM, motor_current, 6);  //show status = purging
       dataAvailable = false;
     }
-
+    io->ledAction(1);
   }
   // *** MENU ***  //
   else if (state == MENU) {
+    io->ledAction(0);
     sew->controller_inhibit = false; //disable controller 
     sew->controller_rapidStop = false;
     sew->controller_stop = false;
@@ -319,7 +346,7 @@ void loop()
       lastCount = io->count();
       dataAvailable = true;
       if (selected == false) {    //Scrolling through menu
-        menu = menu + change;
+        menu = menu - change;
         menu < 0? menu = menuItemsCount : 0;
         menu > menuItemsCount? menu = 0 : 0;
       } 

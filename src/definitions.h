@@ -1,5 +1,14 @@
 
-#define DISPLAY_ADDR 0x3C // I2C Address - use 0x3C or 0x3D depending on your display -- Display connects A4 A5
+#define DISPLAY_ADDR 0x3C // I2C Address - use 0x3C or 0x3D depending on your display 
+
+/* SSD1306 pinout
+STM32F411	SSD1306 I2C OLED
+----------------------------
+3V3			VCC
+GND			GND
+B7			SDA
+B6			SCL
+*/
 
 //Pinout for RS485 Serial2 == PA2(TX) & PA3(RX)
 #define RS485DE      PB1     // This is both RE and DE together (high = TX)
@@ -13,15 +22,6 @@
 
 #define relay_pin PC14
 #define power_relay_pin PA7
-
-/* SSD1306 pinout
-STM32F411	SSD1306 I2C OLED
-----------------------------
-3V3			VCC
-GND			GND
-B7			SDA
-B6			SCL
-*/
 
 // SEW Settings
 
@@ -42,10 +42,15 @@ B6			SCL
 
 #define purge_frames 5
 #define purge_delay 1500
-#define purge_time 4000
+#define purge_time 3000
 #define test_scalar 125 //110% of test current for purging
 
 // Menu / IO stuff
+
+#define fadeTime 2500
+#define flashTime 250
+#define fastFlashTime 150
+#define fastestFlashTime 75
 
 #define menuItemsCount 7
 #define default_sleep_time_min 5
@@ -57,6 +62,7 @@ B6			SCL
 #define ENC_TOL 4       //4 clicks per tick on the rotary encoder
 
 #define baseAddress 0
+
 
 
 
