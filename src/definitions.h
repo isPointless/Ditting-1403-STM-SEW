@@ -40,19 +40,19 @@ B6			SCL
 
 //Purge stuff
 
-#define purge_frames 5
-#define purge_delay 1500
-#define purge_time 3000
-#define test_scalar 125 //110% of test current for purging
+#define default_purge_frames 5
+#define default_purge_delay 1500
+#define default_purge_time 3000
+#define default_purgeprct 125 //110% of test current for purging
 
 // Menu / IO stuff
 
-#define fadeTime 2500
+#define fadeTime 1750
 #define flashTime 250
 #define fastFlashTime 150
 #define fastestFlashTime 75
 
-#define menuItemsCount 7
+#define menuItemsCount 13
 #define default_sleep_time_min 5
 #define max_sleep_time 99
 #define default_viewmode 1

@@ -11,20 +11,26 @@ SAppMenu menuSelect;
 
 const char *menuItems[] =
 {
-  "exit",
-  "View?",
-  "Purge?",
-  "Calibrate?",
-  "Max RPM?",
-  "Min RPM?",
-  "Sleep time?",
-  "Button->purge?"
+  "exit Menu", //0 
+  "ViewMode", // 1
+  "Auto Purge", // 2
+  "Calibrate", 
+  "set Max RPM",
+  "set Min RPM",
+  "Sleep time",
+  "button->purge", // 7
+  "PurgeFramesL", // 8
+  "PurgeFramesH", // 9
+  "PurgeScalarL", // 10
+  "PurgeScalarH", // 11
+  "Purge delay", // 12
+  "Purge time" // 13
 };
 
 const char *infoCodes[] =
   {
     "Calibration complete",
-    "writing.."
+    "saving.."
   };
 
 const char *statusCodes[] =
@@ -39,7 +45,8 @@ const char *statusCodes[] =
   };
 
 Display::Display() {
-  ssd1306_128x64_i2c_init();
+  delay(100); //display needs time to charge up? 5v / 3v3
+  ssd1306_128x64_i2c_init();  //no for(;;) loop as we don't want display halting the rest, mostly the communication.
   ssd1306_clearScreen();
 }
 
@@ -187,7 +194,38 @@ void Display::printMenu(int8_t menuItem, bool selected, uint16_t value)
       ssd1306_setFixedFont(courier_new_font11x16_digits);
       ssd1306_printFixed(55 - strlen(showValue)*6, 30, showValue, STYLE_BOLD);
     }
-    
+    if (menuItem == 8 || menuItem == 9)  //Purge Frames (low & high)
+    { 
+      ssd1306_setFixedFont(ssd1306xled_font8x16);
+      ssd1306_printFixed(64 - strlen(menuItems[menuItem])*4, 4, menuItems[menuItem], STYLE_NORMAL);
+      ssd1306_setFixedFont(ssd1306xled_font6x8);
+      ssd1306_printFixed(4, 52, menuItem == 8? "=< 500 RPM" : "> 500 RPM", STYLE_NORMAL);
+      ssd1306_setFixedFont(courier_new_font11x16_digits);
+      itoa(value, showValue, 10);
+      ssd1306_printFixed(64 - strlen(showValue)*6, 30, showValue, STYLE_BOLD);
+    }
+
+    if (menuItem == 10 || menuItem == 11)  //Purge Prct (low & high)
+    { 
+      ssd1306_setFixedFont(ssd1306xled_font8x16);
+      ssd1306_printFixed(64 - strlen(menuItems[menuItem])*4, 4, menuItems[menuItem], STYLE_NORMAL);
+      ssd1306_setFixedFont(ssd1306xled_font6x8);
+      ssd1306_printFixed(4, 52, menuItem == 10? "=< 500 RPM" : "> 500 RPM", STYLE_NORMAL);
+      ssd1306_setFixedFont(courier_new_font11x16_digits);
+      itoa(value, showValue, 10);
+      ssd1306_printFixed(64 - strlen(showValue)*6, 30, showValue, STYLE_BOLD);
+    }
+
+    if (menuItem == 12 || menuItem == 13)  //Purge delay & time
+    { 
+      itoa(value, showValue, 10);
+      ssd1306_setFixedFont(ssd1306xled_font8x16);
+      ssd1306_printFixed(64 - strlen(menuItems[menuItem])*4, 4, menuItems[menuItem], STYLE_NORMAL);
+      ssd1306_printFixed(60 + strlen(showValue)*6, 30, "ms", STYLE_BOLD);
+      
+      ssd1306_setFixedFont(courier_new_font11x16_digits);
+      ssd1306_printFixed(55 - strlen(showValue)*6, 30, showValue, STYLE_BOLD);
+    }
   }
 
 }

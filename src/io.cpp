@@ -10,9 +10,8 @@ Button enc_button(enc_button_pin);
 Button start_button(start_button_pin);
 HardwareTimer *myEncoder;
 
-#define DEBUG_IO
-#define DEBUG_CALIBRATE
-
+// #define DEBUG_IO
+// #define DEBUG_CALIBRATE
 
 IO::IO() { 
   readEEPROM();
@@ -51,6 +50,13 @@ void IO::readEEPROM() {
   EEPROM.get(eeAddress + 3* sizeof(u_int16_t) + 2*sizeof(bool), sleep_time_min);
   EEPROM.get(eeAddress + 3* sizeof(u_int16_t) + 2*sizeof(bool) + sizeof(uint8_t), buttonPurgeMode);
 
+  EEPROM.get(eeAddress + 3* sizeof(u_int16_t) + 3*sizeof(bool) + sizeof(uint8_t), purge_framesLow);
+  EEPROM.get(eeAddress + 3* sizeof(u_int16_t) + 3*sizeof(bool) + 2*sizeof(uint8_t), purge_framesHigh);
+  EEPROM.get(eeAddress + 3* sizeof(u_int16_t) + 3*sizeof(bool) + 3*sizeof(uint8_t), purge_prctLow);
+  EEPROM.get(eeAddress + 3* sizeof(u_int16_t) + 3*sizeof(bool) + 4*sizeof(uint8_t), purge_prctHigh);
+  EEPROM.get(eeAddress + 3* sizeof(u_int16_t) + 3*sizeof(bool) + 5*sizeof(uint8_t), purge_delay);
+  EEPROM.get(eeAddress + 4* sizeof(u_int16_t) + 3*sizeof(bool) + 5*sizeof(uint8_t), purge_time);
+
   #ifdef DEBUG_IO
   SerialUSB.print("Min RPM: "), SerialUSB.println(minRPM);
   SerialUSB.print("RPM_SET: "), SerialUSB.println(RPM_SET);
@@ -65,27 +71,39 @@ void IO::readEEPROM() {
   }
 
   if(maxRPM > absolute_max_rpm || maxRPM < absolute_min_rpm || minRPM > absolute_max_rpm || minRPM < absolute_min_rpm || RPM_SET < minRPM || RPM_SET > maxRPM) {
-    maxRPM = maxRPM_DEFAULT;
-    writeToEEPROM(4);
-    minRPM = minRPM_DEFAULT;
-    writeToEEPROM(5);
     RPM_SET = RPM_DEFAULT;
     writeToEEPROM(0);
     viewmode = default_viewmode;
     writeToEEPROM(1);
     purgeMode = default_purgemode;
     writeToEEPROM(2);
-    buttonPurgeMode = default_buttonpurgemode;
-    writeToEEPROM(7);
+    maxRPM = maxRPM_DEFAULT;
+    writeToEEPROM(4);
+    minRPM = minRPM_DEFAULT;
+    writeToEEPROM(5);
     sleep_time_min = default_sleep_time_min;
     writeToEEPROM(6);
+    buttonPurgeMode = default_buttonpurgemode;
+    writeToEEPROM(7);
+    purge_framesLow = default_purge_frames;
+    writeToEEPROM(8);
+    purge_framesHigh = default_purge_frames;
+    writeToEEPROM(9);
+    purge_prctLow = default_purgeprct;
+    writeToEEPROM(10);
+    purge_prctHigh = default_purgeprct;
+    writeToEEPROM(11);
+    purge_delay = default_purge_delay;
+    writeToEEPROM(12);
+    purge_time = default_purge_time;
+    writeToEEPROM(13);
   }
 
   #ifdef DEBUG_IO
   SerialUSB.println("eeprom read");
   #endif
 
-  encoderInit();  //eeprom reading breaks the encoder.. put too??
+  encoderInit();  //eeprom reading breaks the encoder.. whatever.
 }
 
 u_int16_t IO::setRPM() { 
@@ -115,7 +133,7 @@ int16_t IO::count() {
   return count;
 }
 
-// 0 = RPM_SET, 1 = viewmode, 2 = purgemode, 3 = calibration, 4 = maxrpm, 5 = minrpm
+// 0 = RPM_SET, 1 = viewmode, 2 = purgemode, 3 = calibration, 4 = maxrpm, 5 = minrpm, 6 = sleeptime, 7 = buttonpurgemode, 8 = framesLow, 9 = framesHigh, 10 = prctLow, 11 = prctHigh, 12 = purgeDelay, 13 = purgeTime
 void IO::writeToEEPROM(uint8_t what) {    
   static unsigned long lastChange = 0;
   static uint16_t lastRPM = RPM_SET;
@@ -155,7 +173,26 @@ if (what == 6) {
 }
 if (what == 7) { 
   EEPROM.put(eeAddress + 3* sizeof(u_int16_t) + 2*sizeof(bool) + sizeof(uint8_t), buttonPurgeMode);
+} 
+if (what == 8) {
+  EEPROM.put(eeAddress + 3* sizeof(u_int16_t) + 3*sizeof(bool) + sizeof(uint8_t), purge_framesLow);
+} 
+if (what == 9) { 
+  EEPROM.put(eeAddress + 3* sizeof(u_int16_t) + 3*sizeof(bool) + 2*sizeof(uint8_t), purge_framesHigh);
+} 
+if (what == 10) {
+  EEPROM.put(eeAddress + 3* sizeof(u_int16_t) + 3*sizeof(bool) + 3*sizeof(uint8_t), purge_prctLow);
 }
+if (what == 11) { 
+  EEPROM.put(eeAddress + 3* sizeof(u_int16_t) + 3*sizeof(bool) + 4*sizeof(uint8_t), purge_prctHigh);
+}
+if (what == 12) {
+  EEPROM.put(eeAddress + 3* sizeof(u_int16_t) + 3*sizeof(bool) + 5*sizeof(uint8_t), purge_delay);
+}
+if (what == 13) {
+  EEPROM.put(eeAddress + 4* sizeof(u_int16_t) + 3*sizeof(bool) + 5*sizeof(uint8_t), purge_time);
+}
+
 
 #ifdef DEBUG_IO
   SerialUSB.print("put: "), SerialUSB.println(what);

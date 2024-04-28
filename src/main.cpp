@@ -9,18 +9,12 @@
 
 // *** stuff *** //
 // ************* //
-// void readEEPROM();
-// void writeToEEPROM(uint8_t what);
+
+void Control(uint8_t status); // 0 = disable, 1 = enable, 2 = inhibit
 
 SEW *sew;
 Display *display;
 IO *io;
-
-// // EEPROM
-// int16_t currentArray[((absolute_max_rpm-absolute_min_rpm)/rpmScalar)];
-// int eeAddress = 0;
-// int highAddress = 100;
-// u_int16_t storedRPM = 0;
 
 //PIs
 int16_t motorRPM = 0;
@@ -33,7 +27,7 @@ int16_t last_rpm = 0;
 int16_t last_current;
 uint16_t last_setRPM = 0;
 
-
+//Status
 unsigned long lastSend = 0; //start after 1s.
 unsigned long lastActivity = 0;
 unsigned long startTime = 0;
@@ -43,8 +37,8 @@ enum States {IDLE, RUNNING, MENU, SLEEP, PURGING};
 uint8_t state = IDLE;
 uint8_t lastStatus = 0;
 
-
-enum menuItems {EXIT, VIEW, PURGE, CALIBRATE, SETMAX, SETMIN, SETSLEEP, SETBUTTONPURGE};
+//Menu
+enum menuItems {EXIT, VIEW, PURGE, CALIBRATE, SETMAX, SETMIN, SETSLEEP, SETBUTTONPURGE, SETPURGEFRAMESLOW, SETPURGEFRAMESHIGH, SETPURGEPRCTLOW, SETPURGEPRCTHIGH, SETPURGETIME, SETPURGEDELAY};
 int8_t menu = EXIT;
 bool selected = false;
 int16_t value = 0;
@@ -54,6 +48,10 @@ int16_t change = 0;
 uint8_t frameCounter;
 bool ready_purge = 0;
 bool newMsg = 0;
+
+// Purge
+uint8_t test_scalar = default_purgeprct;
+uint8_t purge_frames = default_purge_frames;
 
 
 //DEBUG 
@@ -66,9 +64,10 @@ bool newMsg = 0;
 // ************* //
 
 void setup() {
-  #ifdef DEBUG
+   #ifdef DEBUG
   SerialUSB.begin(115200); //USB-CDC (Takes PA8,PA9,PA10,PA11)
   #endif
+  
   display = new Display();
   sew = new SEW();
   io = new IO();
@@ -125,10 +124,7 @@ void loop()
   if(lastActivity + (io->sleep_time_min)*60000 < millis() && io->sleep_time_min > 0)
   { 
     state = SLEEP;
-    digitalWrite(relay_pin, LOW);
-    sew->controller_inhibit = true; //inhibit controller 
-    sew->controller_rapidStop = false;
-    sew->controller_stop = false;
+    Control(2); // inhibit controller
     while(!sew->sendSEW(1, 0, 0, minMsgInterval));
     digitalWrite(power_relay_pin, LOW); //turn off power to inverter
     io->ledAction(0);
@@ -136,54 +132,49 @@ void loop()
 
   // *** IDLE ***  //
   if(state == IDLE) {
-      sew->controller_inhibit = false; //disable controller 
-      sew->controller_rapidStop = false;
-      sew->controller_stop = false;
-      digitalWrite(relay_pin, LOW);
-      io->ledAction(3);
+    Control(0);
+    io->ledAction(3);
 
-      if(io->setRPM() != last_setRPM) 
-      {
-        RPMprct= io->setRPM()/float(io->maxRPM)*(0x4000);
-        last_setRPM = io->setRPM();
-        dataAvailable = true;
-        lastActivity = millis();
-        #ifdef DEBUG_IO
-          SerialUSB.print("new rpm: "), SerialUSB.println(last_setRPM);
-        #endif
-      }
+    if(io->setRPM() != last_setRPM) 
+    {
+      RPMprct= io->setRPM()/float(io->maxRPM)*(0x4000);
+      last_setRPM = io->setRPM();
+      dataAvailable = true;
+      lastActivity = millis();
+      #ifdef DEBUG_IO
+        SerialUSB.print("new rpm: "), SerialUSB.println(last_setRPM);
+      #endif
+    }
    
-      if(dataAvailable == true)  //Show it on the screen
-      { 
-        io->viewmode? display->printRPM(sew->status == 5? motorRPM : io->setRPM(), sew->status) : display->printData(sew->status == 5? motorRPM : io->setRPM(), motorRPM, motor_current, sew->status);  
-        dataAvailable = false;
-      }
+    if(dataAvailable == true)  //Show it on the screen
+    { 
+      io->viewmode? display->printRPM(sew->status == 5? motorRPM : io->setRPM(), sew->status) : display->printData(sew->status == 5? motorRPM : io->setRPM(), motorRPM, motor_current, sew->status);  
+      dataAvailable = false;
+    }
 
-      if (io->ENC_BUTTON() == true) { 
-        state = MENU;
-        menu = EXIT;
+    if (io->ENC_BUTTON() == true) { 
+      state = MENU;
+      menu = EXIT;
+      dataAvailable = true;
+      lastActivity = millis();
+    }
+
+    if (io->START_BUTTON() == true) 
+    { 
+      if(sew->status != 3) { 
+        display->printError(sew->status);
+      } else 
+      {
+        digitalWrite(relay_pin, HIGH);   //enable physical controller IO.
+        Control(1);
         dataAvailable = true;
         lastActivity = millis();
+        state = RUNNING;
+        startTime = millis();
+        frameCounter = 0;
+        ready_purge = false;
       }
-
-      if (io->START_BUTTON() == true) 
-      { 
-        if(sew->status != 3) { 
-          display->printError(sew->status);
-        } else 
-        {
-          digitalWrite(relay_pin, HIGH);   //enable physical controller IO.
-          sew->controller_inhibit = false; //enable controller 
-          sew->controller_rapidStop = true;
-          sew->controller_stop = true;
-          dataAvailable = true;
-          lastActivity = millis();
-          state = RUNNING;
-          startTime = millis();
-          frameCounter = 0;
-          ready_purge = false;
-        }
-      }
+    }
   }
     // *** RUNNING ***  //
   else if (state == RUNNING) {
@@ -210,20 +201,18 @@ void loop()
         io->viewmode? display->printRPM(motorRPM, sew->status) : display->printData(io->setRPM(), motorRPM, motor_current, sew->status);  
         dataAvailable = false;
       }
-    
+    // No button purge
     if(io->buttonPurgeMode == false) {
       if (io->ENC_BUTTON() == true || (io->START_BUTTON() == true)) 
       { 
-        sew->controller_inhibit = false; //disable controller 
-        sew->controller_rapidStop = false;
-        sew->controller_stop = false;
-        digitalWrite(relay_pin, LOW);
+        Control(0);
         while(!sew->sendSEW(1, 0, 0, minMsgInterval)); 
         state = IDLE;
         dataAvailable = true;
         lastActivity = millis();
       }
     } 
+    // Button purge
     if(io->buttonPurgeMode == true) 
     {
       if (io->START_BUTTON() == true) 
@@ -237,10 +226,7 @@ void loop()
 
       if (io->ENC_BUTTON() == true)   //stop the show
       { 
-        sew->controller_inhibit = false; //disable controller 
-        sew->controller_rapidStop = false;
-        sew->controller_stop = false;
-        digitalWrite(relay_pin, LOW);
+        Control(0);
         while(!sew->sendSEW(1, 0, 0, minMsgInterval)); 
         state = IDLE;
         dataAvailable = true;
@@ -248,16 +234,25 @@ void loop()
       }
     }
 
-    if(io->purgeMode == true && newMsg == true && startTime + 4000 < millis() && lastActivity + 1000 < millis()) 
+    // Auto purge
+    if(io->purgeMode == true && newMsg == true && startTime + 3000 < millis() && lastActivity + 1000 < millis()) 
     { 
       newMsg = false;
       test_current = io->currentArray[((io->setRPM()-absolute_min_rpm)/rpmScalar)]*Inom;
+
+      if(io->setRPM() > 500) { 
+        test_scalar = io->purge_prctHigh;
+        purge_frames = io->purge_framesHigh;
+      } else { 
+        test_scalar = io->purge_prctLow;
+        purge_frames = io->purge_framesLow;
+      }
 
       #ifdef DEBUG_CALIBRATE
       SerialUSB.print("test cur: "), SerialUSB.print((test_current*test_scalar)/100), SerialUSB.print(" m_cur: "), SerialUSB.println(motor_current);
       #endif
 
-      if(motor_current > (test_current*test_scalar)/100) { //x% above test current
+      if(motor_current > (test_current*test_scalar)/100.f) { //x% above test current
         frameCounter++;
         #ifdef DEBUG_CALIBRATE
           SerialUSB.print("frame counter: "), SerialUSB.println(frameCounter);
@@ -275,7 +270,7 @@ void loop()
         lastActivity = millis();
       }
       
-      if(ready_purge == true && (lastActivity + purge_delay) < millis()) 
+      if(ready_purge == true && (lastActivity + io->purge_delay) < millis()) 
       { 
         #ifdef DEBUG_CALIBRATE
         SerialUSB.println("go purge");
@@ -293,12 +288,9 @@ void loop()
   // *** PURGING ***  //
   else if (state == PURGING) 
   { 
-    if (io->ENC_BUTTON() == true || io->START_BUTTON() == true || (startTime + purge_time) < millis()) 
+    if (io->ENC_BUTTON() == true || io->START_BUTTON() == true || (startTime + io->purge_time) < millis()) 
     { 
-      sew->controller_inhibit = false; //disable controller 
-      sew->controller_rapidStop = false;
-      sew->controller_stop = false;
-      digitalWrite(relay_pin, LOW);
+      Control(0);
       RPMprct = io->setRPM()/float(io->maxRPM)*(0x4000);
       while(!sew->sendSEW(1, 0, 0, minMsgInterval)); 
       state = IDLE;
@@ -316,11 +308,8 @@ void loop()
   // *** MENU ***  //
   else if (state == MENU) {
     io->ledAction(0);
-    sew->controller_inhibit = false; //disable controller 
-    sew->controller_rapidStop = false;
-    sew->controller_stop = false;
-    digitalWrite(relay_pin, LOW);
-      
+    Control(0);
+
     if (selected == false && io->ENC_BUTTON() == true) 
     { 
       if (menu == 0) {       //exit menu
@@ -336,6 +325,12 @@ void loop()
       menu == SETMIN? value = io->minRPM : 0;
       menu == SETSLEEP? value = io->sleep_time_min: 0;
       menu == SETBUTTONPURGE? value = io->buttonPurgeMode: 0;
+      menu == SETPURGEFRAMESLOW? value = io->purge_framesLow : 0;
+      menu == SETPURGEFRAMESHIGH? value = io->purge_framesHigh: 0;
+      menu == SETPURGEPRCTLOW? value = io->purge_prctLow: 0;
+      menu == SETPURGEPRCTHIGH? value = io->purge_prctHigh: 0;
+      menu == SETPURGEDELAY? value = io->purge_delay: 0;
+      menu == SETPURGETIME? value = io->purge_time: 0;
       }
       dataAvailable = true;
     }
@@ -346,15 +341,15 @@ void loop()
       lastCount = io->count();
       dataAvailable = true;
       if (selected == false) {    //Scrolling through menu
-        menu = menu - change;
+        menu = menu + change;
         menu < 0? menu = menuItemsCount : 0;
         menu > menuItemsCount? menu = 0 : 0;
       } 
       if (selected == true)
       {
-        if(change != 0 && (menu == VIEW || menu == PURGE || menu == CALIBRATE || menu == SETBUTTONPURGE)) 
+        if(change != 0 && (menu == VIEW || menu == PURGE || menu == CALIBRATE || menu == SETBUTTONPURGE)) //Bools
         { 
-          value == 0? value = 1: value = 0; //value =!value doesnt work since its not a bool?
+          value == 0? value = 1: value = 0; 
         } 
         if(menu == SETMAX || menu == SETMIN) { 
           value = value + change*rpmScalar;
@@ -366,6 +361,21 @@ void loop()
           value = value + change;
           value >= max_sleep_time? value = max_sleep_time : 0;
           value < 0 ? value = 0 : 0;
+        }
+        if(menu == SETPURGEFRAMESLOW || menu == SETPURGEFRAMESHIGH) { 
+          value = value + change;
+          value >= 25? value = 25 : 0;
+          value < 0? value = 0 : 0;
+        }
+        if(menu == SETPURGEPRCTLOW || menu == SETPURGEPRCTHIGH) { 
+          value = value + change;
+          value >= 200? value = 200: 0;
+          value < 100 ? value = 100: 0;
+        }
+         if(menu == SETPURGEDELAY || menu == SETPURGETIME) { 
+          value = value + (int)change*(250);
+          value >= 10000? value = 10000: 0;
+          value < 0 ? value = 0: 0;
         }
       }
     }
@@ -379,15 +389,13 @@ void loop()
           io->readEEPROM();
           state = IDLE;
           dataAvailable = true;
+          delay(500);
         } else { 
           #ifdef DEBUG
           SerialUSB.println("Calibrate failed");
           #endif
         }
-        sew->controller_inhibit = false; //disable controller, double check
-        sew->controller_rapidStop = false;
-        sew->controller_stop = false;
-        digitalWrite(relay_pin, LOW);
+        Control(0);
         lastActivity = millis();        
       } else {  //everything
         menu == 1? io->viewmode = value : 0;
@@ -396,6 +404,13 @@ void loop()
         menu == 5? io->minRPM = value : 0;
         menu == 6? io->sleep_time_min = value : 0;
         menu == 7? io->buttonPurgeMode = value : 0;
+        menu == 8? io->purge_framesLow = value : 0;
+        menu == 9? io->purge_framesHigh = value : 0;
+        menu == 10? io->purge_prctLow = value : 0;
+        menu == 11? io->purge_prctHigh = value : 0;
+        menu == 12? io->purge_delay = value : 0;
+        menu == 13? io->purge_time = value : 0;
+        display->printInfo(1);
         io->writeToEEPROM(menu);
         dataAvailable = true;
       }
@@ -440,4 +455,28 @@ void loop()
     SerialUSB.print(" curr-in "), SerialUSB.println(sew->PI3);
   }
   #endif
+}
+
+void Control(uint8_t status) // 0 = disable, 1 = enable, 2 = inhibit
+{ 
+  if(status == 0) { 
+    sew->controller_inhibit = false; //disable
+    sew->controller_rapidStop = false;
+    sew->controller_stop = false;
+    digitalWrite(relay_pin, LOW);
+  }
+  
+  if(status == 1) {
+    sew->controller_inhibit = false; //enable controller 
+    sew->controller_rapidStop = true;
+    sew->controller_stop = true;
+    digitalWrite(relay_pin, HIGH);
+  } 
+
+  if(status == 2) {
+    sew->controller_inhibit = true; //inhibit
+    sew->controller_rapidStop = false;
+    sew->controller_stop = false;
+    digitalWrite(relay_pin, LOW);
+  }
 }

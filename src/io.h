@@ -28,6 +28,14 @@ class IO {
     bool viewmode = default_viewmode;
     bool purgeMode = default_purgemode;
     bool buttonPurgeMode = default_buttonpurgemode;
-    uint8_t sleep_time_min;
+    uint8_t sleep_time_min = default_sleep_time_min;
+
+    uint8_t purge_framesLow = default_purge_frames;
+    uint8_t purge_framesHigh = default_purge_frames;
+    uint8_t purge_prctLow = default_purgeprct;
+    uint8_t purge_prctHigh = default_purgeprct;
+    uint16_t purge_delay = default_purge_delay;
+    uint16_t purge_time = default_purge_time;
+
     int16_t currentArray[((absolute_max_rpm-absolute_min_rpm)/rpmScalar)];
 };

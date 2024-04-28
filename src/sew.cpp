@@ -11,8 +11,6 @@ HardwareSerial Serial2(PA3, PA2);
 IO *io2;
 Display *display2;
 
-#define DEBUG_CALIBRATE
-
 SEW::SEW() { 
   Serial2.begin(9600, SERIAL_8E2);  // PA2(TX) & PA3(RX)
   pinMode(RS485DE, OUTPUT);
@@ -283,7 +281,6 @@ bool SEW::calibrate(uint16_t maxRPM) {
     }
   }
   //write last value
-  //display2->printInfo(1);
   EEPROM.put(highAddress + sizeof(uint16_t)*(lastWritten+1), calibrateArray[lastWritten+1]); //this is really f'in slow so we do it during..
   #ifdef DEBUG_CALIBRATE
       SerialUSB.print("written: "), SerialUSB.print(lastWritten+1), SerialUSB.print(" RPM = "), SerialUSB.println((lastWritten+1)*rpmScalar + absolute_min_rpm);
@@ -294,6 +291,5 @@ bool SEW::calibrate(uint16_t maxRPM) {
   digitalWrite(relay_pin, LOW);
   delay(100);
   while(sendSEW(1, 0, 0, minMsgInterval) == false); //fast shutoff
-  //io2->writeToEEPROM(3);
   return true;
 }
